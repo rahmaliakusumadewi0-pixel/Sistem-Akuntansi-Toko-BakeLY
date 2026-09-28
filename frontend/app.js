@@ -32,6 +32,17 @@ async function api(path, options = {}) {
   return body;
 }
 async function rpc(name, payload) { return api(`rpc/${name}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); }
+async function apiAll(path, pageSize = 1000) {
+  const rows = [];
+  let offset = 0;
+  while (true) {
+    const separator = path.includes('?') ? '&' : '?';
+    const page = await api(`${path}${separator}limit=${pageSize}&offset=${offset}`);
+    rows.push(...page);
+    if (page.length < pageSize) return rows;
+    offset += page.length;
+  }
+}
 async function loadData() {
   if (!state.config.url || !state.config.key) {
     $('#connection-label').textContent = 'Supabase belum diatur';
@@ -43,29 +54,29 @@ async function loadData() {
     const results = await Promise.allSettled([
       api('penjualan?select=*&order=tanggal.desc&limit=30'), api('bahan_baku?select=*&order=nama.asc'), api('produk?select=*&order=nama.asc'),
       api('produksi?select=*,produk(nama)&order=tanggal.desc&limit=30'), api('pemakaian_bb?select=*,bahan_baku(nama,satuan),produksi(nomor_produksi,tanggal)&order=created_at.desc&limit=50'),
-      rpc('ringkasan_penjualan', {}), rpc('ringkasan_produksi', {})
+      apiAll('penjualan?select=total,status&order=tanggal.desc'), apiAll('produksi?select=jumlah')
     ]);
-    const [sales, materials, products, productions, usages, salesSummary, productionSummary] = results.map((result) => result.status === 'fulfilled' ? result.value : []);
-    state.sales = sales; state.salesSummary = salesSummary || { total: 0, count: 0 }; state.materials = materials; state.products = products; state.productions = productions; state.productionSummary = productionSummary || { total: 0, count: 0 }; state.usages = usages;
+    const [sales, materials, products, productions, usages, allSales, allProductions] = results.map((result) => result.status === 'fulfilled' ? result.value : []);
+    const salesSummary = allSales.reduce((summary, sale) => sale.status === 'batal' ? summary : { total: summary.total + Number(sale.total || 0), count: summary.count + 1 }, { total: 0, count: 0 });
+    const productionSummary = allProductions.reduce((summary, production) => ({ total: summary.total + Number(production.jumlah || 0), count: summary.count + 1 }), { total: 0, count: 0 });
+    state.sales = sales; state.salesSummary = salesSummary; state.materials = materials; state.products = products; state.productions = productions; state.productionSummary = productionSummary; state.usages = usages;
     const failures = results.filter((result) => result.status === 'rejected');
-    const migrationNeeded = failures.some((result) => result.reason?.status === 404);
     if (failures.length === results.length) {
-      $('#connection-label').textContent = migrationNeeded ? 'Migrasi diperlukan' : 'Koneksi gagal';
+      $('#connection-label').textContent = 'Koneksi gagal';
       $('.status-dot').style.background = '#c86e7b';
     } else if (failures.length) {
-      $('#connection-label').textContent = migrationNeeded ? 'Migrasi diperlukan' : 'Koneksi sebagian';
+      $('#connection-label').textContent = 'Koneksi sebagian';
       $('.status-dot').style.background = '#cf9361';
     } else {
       $('#connection-label').textContent = 'Supabase terhubung';
       $('.status-dot').style.background = '#91bd7f';
     }
     render();
-    if (failures.length) showToast(migrationNeeded ? 'Jalankan supabase/migration_public_access.sql di Supabase SQL Editor.' : failures[0].reason?.message || 'Sebagian data gagal dimuat.');
+    if (failures.length) showToast(failures[0].reason?.message || 'Sebagian data gagal dimuat.');
   } catch (error) {
-    const migrationNeeded = error.status === 404;
-    $('#connection-label').textContent = migrationNeeded ? 'Migrasi diperlukan' : 'Koneksi gagal';
+    $('#connection-label').textContent = 'Koneksi gagal';
     $('.status-dot').style.background = '#c86e7b';
-    showToast(migrationNeeded ? 'Jalankan supabase/migration_public_access.sql di Supabase SQL Editor.' : error.message);
+    showToast(error.message);
     render();
   }
 }
@@ -135,7 +146,7 @@ $('#add-usage').addEventListener('click', addUsageRow); $('#add-sale-item').addE
 $('#material-modal form').addEventListener('submit', async (event) => { event.preventDefault(); const id = $('#material-id').value; const payload = { nama: $('#material-name').value, satuan: $('#material-unit').value, stok: Number($('#material-stock').value), stok_minimum: Number($('#material-minimum').value), harga_satuan: Number($('#material-price').value) }; try { await api(id ? `bahan_baku?id=eq.${id}` : 'bahan_baku', { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); closeModal($('#material-modal')); event.currentTarget.reset(); $('#material-id').value = ''; $('#material-modal-title').textContent = 'Tambah bahan baku'; await loadData(); showToast('Bahan baku disimpan.'); } catch (error) { event.currentTarget.querySelector('.form-message').textContent = error.message; } });
 $('#product-modal form').addEventListener('submit', async (event) => { event.preventDefault(); const id = $('#product-id').value; const payload = { kode_produk: $('#product-code').value, nama: $('#product-name').value, harga_jual: Number($('#product-price').value), stok: Number($('#product-stock').value), satuan: $('#product-unit').value, aktif: true }; try { await api(id ? `produk?id=eq.${id}` : 'produk', { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); closeModal($('#product-modal')); event.currentTarget.reset(); $('#product-id').value = ''; $('#product-modal-title').textContent = 'Tambah barang jadi'; await loadData(); showToast('Produk disimpan.'); } catch (error) { event.currentTarget.querySelector('.form-message').textContent = error.message; } });
 $('#production-modal form').addEventListener('submit', async (event) => { event.preventDefault(); const usage = [...document.querySelectorAll('#usage-fields .dynamic-row')].map((row) => ({ bahan_baku_id: row.querySelector('.usage-material').value, jumlah: Number(row.querySelector('.usage-amount').value) })).filter((item) => item.bahan_baku_id && item.jumlah > 0); try { await rpc('catat_produksi', { p_nomor_produksi: $('#production-number').value, p_produk_id: $('#production-product').value, p_jumlah: Number($('#production-amount').value), p_catatan: $('#production-note').value || null, p_pemakaian: usage }); closeModal($('#production-modal')); event.currentTarget.reset(); $('#usage-fields').innerHTML = ''; await loadData(); showToast('Produksi dicatat dan stok diperbarui.'); } catch (error) { event.currentTarget.querySelector('.form-message').textContent = error.message; } });
-$('#sale-modal form').addEventListener('submit', async (event) => { event.preventDefault(); const items = [...document.querySelectorAll('#sale-fields .dynamic-row')].map((row) => ({ produk_id: row.querySelector('.sale-product').value, jumlah: Number(row.querySelector('.sale-amount').value) })).filter((item) => item.produk_id && item.jumlah > 0); try { await rpc('catat_penjualan', { p_nomor_nota: $('#sale-number').value, p_pelanggan: $('#sale-customer').value, p_items: items, p_status: $('#sale-status').value }); closeModal($('#sale-modal')); event.currentTarget.reset(); $('#sale-fields').innerHTML = ''; await loadData(); showToast('Penjualan dicatat dan stok barang jadi berkurang.'); } catch (error) { event.currentTarget.querySelector('.form-message').textContent = error.message; } });
+$('#sale-modal form').addEventListener('submit', async (event) => { event.preventDefault(); const items = [...document.querySelectorAll('#sale-fields .dynamic-row')].map((row) => ({ produk_id: row.querySelector('.sale-product').value, jumlah: Number(row.querySelector('.sale-amount').value) })).filter((item) => item.produk_id && item.jumlah > 0); try { await rpc('catat_penjualan', { p_nomor_nota: $('#sale-number').value, p_pelanggan: $('#sale-customer').value, p_items: items }); closeModal($('#sale-modal')); event.currentTarget.reset(); $('#sale-fields').innerHTML = ''; await loadData(); showToast('Penjualan dicatat dan stok barang jadi berkurang.'); } catch (error) { event.currentTarget.querySelector('.form-message').textContent = error.message; } });
 $('#settings-button').addEventListener('click', showSettings);
 $('#settings-form').addEventListener('submit', async (event) => {
   event.preventDefault();
