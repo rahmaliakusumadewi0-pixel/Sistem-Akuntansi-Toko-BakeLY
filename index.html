@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bakely | Sistem Akuntansi Bakery</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">✦</span><span>bakely<br><em>ledger</em></span></div>
+      <p class="eyebrow">Menu utama</p>
+      <nav class="nav-group"><button class="nav-item active" data-view="dashboard"><span>▦</span> Dashboard</button></nav>
+      <p class="eyebrow nav-label">Master data</p>
+      <nav class="nav-group"><button class="nav-item" data-view="bahan"><span>▤</span> Bahan Baku</button><button class="nav-item" data-view="produk"><span>▥</span> Barang Jadi</button></nav>
+      <p class="eyebrow nav-label">Transaksi</p>
+      <nav class="nav-group"><button class="nav-item" data-view="pemakaian"><span>⌁</span> Pemakaian BB</button><button class="nav-item" data-view="produksi"><span>♨</span> Produksi</button><button class="nav-item" data-view="penjualan"><span>↗</span> Penjualan</button><button class="nav-item" data-view="laporan"><span>◫</span> Laporan</button></nav>
+      <div class="sidebar-foot"><span class="status-dot"></span><span id="connection-label">Menghubungkan...</span><button id="settings-button" title="Lihat koneksi">⚙</button></div>
+    </aside>
+    <main class="main-content">
+      <header class="topbar"><div><p class="eyebrow" id="page-kicker">Ringkasan usaha</p><h1 id="page-title">Sistem Akuntansi Bakely</h1></div><div class="date-stamp" id="today"></div></header>
+
+      <section id="dashboard-view" class="view active-view">
+        <div class="hero-strip">
+          <div class="hero-copy">
+            <span class="tag">Fresh bakery ops</span>
+            <h2>Setiap batch dibuat rapi, aman, dan laris.</h2>
+            <p>Pantau stok bahan, produksi hari ini, sampai penjualan yang siap dibawa pelanggan.</p>
+            <div class="hero-meta">
+              <span>🍞 Roti hari ini: 128 pcs</span>
+              <span>⏱ Jam buka: 07:00</span>
+            </div>
+          </div>
+          <div class="hero-visual">
+            <div class="mini-badge">Fresh batch</div>
+            <div class="bread-illustration">
+              <span class="bread-shape bread-top"></span>
+              <span class="bread-shape bread-mid"></span>
+              <span class="bread-shape bread-bottom"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="metric-grid">
+          <article class="metric-card accent" data-view-link="penjualan"><div class="metric-icon">Rp</div><p>Total penjualan</p><strong id="sales-total">Rp 0</strong><small id="sales-count">0 transaksi</small></article>
+          <article class="metric-card" data-view-link="produk"><div class="metric-icon mint">▥</div><p>Barang jadi tersedia</p><strong id="finished-total">0 pcs</strong><small id="product-count">0 produk aktif</small></article>
+          <article class="metric-card" data-view-link="bahan"><div class="metric-icon blue">▤</div><p>Nilai persediaan BB</p><strong id="inventory-total">Rp 0</strong><small>nilai stok bahan baku</small></article>
+          <article class="metric-card" data-view-link="bahan"><div class="metric-icon peach">!</div><p>Stok minimum</p><strong id="low-stock-count">0 bahan</strong><small>perlu diperhatikan</small></article>
+        </div>
+
+        <div class="feature-strip">
+          <article class="feature-card warm" data-view-link="produk">
+            <span class="feature-icon">🥐</span>
+            <div><p>Best seller</p><strong>Croissant Butter</strong></div>
+          </article>
+          <article class="feature-card soft" data-view-link="bahan">
+            <span class="feature-icon">📦</span>
+            <div><p>Stok kritis</p><strong>3 bahan butuh cek</strong></div>
+          </article>
+          <article class="feature-card mint" data-view-link="produksi">
+            <span class="feature-icon">🏭</span>
+            <div><p>Batch hari ini</p><strong>Produksi 2 jadwal</strong></div>
+          </article>
+        </div>
+
+        <div class="dashboard-grid"><section class="panel chart-panel"><div class="panel-heading"><div><p class="eyebrow">Performa</p><h3>Grafik penjualan</h3></div><span class="period-label">7 transaksi terakhir</span></div><div class="bar-chart" id="sales-chart"></div></section><section class="panel"><div class="panel-heading"><div><p class="eyebrow">Persediaan</p><h3>Bahan hampir habis</h3></div><button class="text-button" data-view-link="bahan">Kelola ↗</button></div><div id="low-stock-list" class="stock-list"><p class="empty-state">Memuat data...</p></div></section></div>
+        <div class="dashboard-grid lower-grid"><section class="panel"><div class="panel-heading"><div><p class="eyebrow">Aktivitas</p><h3>Produksi terbaru</h3></div><button class="text-button" data-view-link="produksi">Lihat semua ↗</button></div><div class="table-wrap"><table><thead><tr><th>Nomor</th><th>Produk</th><th>Jumlah</th><th>Tanggal</th></tr></thead><tbody id="recent-production"></tbody></table></div></section><section class="panel"><div class="panel-heading"><div><p class="eyebrow">Kasir</p><h3>Penjualan terbaru</h3></div><button class="text-button" data-view-link="penjualan">Lihat semua ↗</button></div><div class="table-wrap"><table><thead><tr><th>Nota</th><th>Pelanggan</th><th class="align-right">Total</th></tr></thead><tbody id="recent-sales"></tbody></table></div></section></div>
+      </section>
+
+      <section id="bahan-view" class="view"><div class="section-heading"><div><p class="eyebrow">Master data</p><h2>Bahan baku</h2></div><button class="primary-button" data-open="material-modal">＋ Tambah bahan</button></div><section class="panel"><div class="table-wrap"><table><thead><tr><th>Nama bahan</th><th>Satuan</th><th>Stok</th><th>Minimum</th><th>Harga satuan</th><th>Status</th><th></th></tr></thead><tbody id="material-table"></tbody></table></div></section></section>
+      <section id="produk-view" class="view"><div class="section-heading"><div><p class="eyebrow">Master data</p><h2>Barang jadi</h2></div><button class="primary-button" data-open="product-modal">＋ Tambah produk</button></div><section class="panel"><div class="table-wrap"><table><thead><tr><th>Kode</th><th>Nama produk</th><th>Harga jual</th><th>Stok</th><th>Status</th><th></th></tr></thead><tbody id="product-table"></tbody></table></div></section></section>
+      <section id="pemakaian-view" class="view"><div class="section-heading"><div><p class="eyebrow">Transaksi</p><h2>Pemakaian bahan baku</h2></div><button class="primary-button" data-view-link="produksi">＋ Catat bersama produksi</button></div><section class="panel"><div class="table-wrap"><table><thead><tr><th>Produksi</th><th>Bahan baku</th><th>Jumlah terpakai</th><th>Tanggal</th></tr></thead><tbody id="usage-table"></tbody></table></div></section></section>
+      <section id="produksi-view" class="view"><div class="section-heading"><div><p class="eyebrow">Transaksi</p><h2>Produksi</h2></div><button class="primary-button" data-open="production-modal">＋ Catat produksi</button></div><section class="panel"><div class="table-wrap"><table><thead><tr><th>Nomor</th><th>Barang jadi</th><th>Jumlah</th><th>Tanggal</th><th>Catatan</th></tr></thead><tbody id="production-table"></tbody></table></div></section></section>
+      <section id="penjualan-view" class="view"><div class="section-heading"><div><p class="eyebrow">Transaksi</p><h2>Penjualan</h2></div><button class="primary-button" data-open="sale-modal">＋ Catat penjualan</button></div><section class="panel"><div class="table-wrap"><table><thead><tr><th>Nota</th><th>Pelanggan</th><th>Tanggal</th><th>Status</th><th class="align-right">Total</th></tr></thead><tbody id="sales-table"></tbody></table></div></section></section>
+
+      <section id="laporan-view" class="view">
+        <div class="section-heading">
+          <div><p class="eyebrow">Analisis usaha</p><h2>Laporan</h2></div>
+          <button class="primary-button" type="button" data-view-link="penjualan">Lihat penjualan</button>
+        </div>
+
+        <div class="report-grid">
+          <article class="report-card accent" data-view-link="penjualan">
+            <p>Total penjualan</p>
+            <strong id="report-sales-total">Rp 0</strong>
+            <small id="report-sales-count-detail">0 transaksi</small>
+          </article>
+          <article class="report-card" data-view-link="produksi">
+            <p>Produksi</p>
+            <strong id="report-production-total">0 pcs</strong>
+            <small id="report-production-count">0 batch</small>
+          </article>
+          <article class="report-card" data-view-link="bahan">
+            <p>Stok kritis</p>
+            <strong id="report-low-stock-total">0 bahan</strong>
+            <small>perlu restock</small>
+          </article>
+          <article class="report-card" data-view-link="produk">
+            <p>Barang siap jual</p>
+            <strong id="report-ready-product-total">0 pcs</strong>
+            <small id="report-ready-product-label">stok tersedia</small>
+          </article>
+        </div>
+
+        <div class="report-panels">
+          <section class="panel">
+            <div class="panel-heading">
+              <div><p class="eyebrow">Ringkasan</p><h3>Penjualan terakhir</h3></div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Nota</th><th>Pelanggan</th><th>Tanggal</th><th class="align-right">Total</th></tr></thead>
+                <tbody id="report-sales-table"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading">
+              <div><p class="eyebrow">Inventori</p><h3>Bahan baku perlu perhatian</h3></div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Bahan</th><th>Stok</th><th>Minimum</th><th>Status</th></tr></thead>
+                <tbody id="report-stock-table"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div class="modal-backdrop" id="material-modal"><form class="modal action-form"><button type="button" class="close-button" data-close-modal>×</button><p class="eyebrow">Master bahan</p><h2 id="material-modal-title">Tambah bahan baku</h2><input id="material-id" type="hidden"><label>Nama bahan<input id="material-name" required></label><div class="form-grid"><label>Satuan<input id="material-unit" value="kg" required></label><label>Stok awal<input id="material-stock" type="number" min="0" step="0.01" required></label><label>Stok minimum<input id="material-minimum" type="number" min="0" step="0.01" required></label><label>Harga satuan<input id="material-price" type="number" min="0" required></label></div><button class="primary-button" type="submit">Simpan bahan</button><p class="form-message"></p></form></div>
+  <div class="modal-backdrop" id="product-modal"><form class="modal action-form"><button type="button" class="close-button" data-close-modal>×</button><p class="eyebrow">Master barang jadi</p><h2 id="product-modal-title">Tambah barang jadi</h2><input id="product-id" type="hidden"><label>Kode produk<input id="product-code" required></label><label>Nama produk<input id="product-name" required></label><div class="form-grid"><label>Harga jual<input id="product-price" type="number" min="0" required></label><label>Stok awal<input id="product-stock" type="number" min="0" required></label><label>Satuan<input id="product-unit" value="pcs" required></label></div><button class="primary-button" type="submit">Simpan produk</button><p class="form-message"></p></form></div>
+  <div class="modal-backdrop" id="production-modal"><form class="modal action-form"><button type="button" class="close-button" data-close-modal>×</button><p class="eyebrow">Dapur produksi</p><h2>Catat produksi</h2><label>Nomor produksi<input id="production-number" required></label><label>Barang jadi<select id="production-product" required></select></label><label>Jumlah produksi<input id="production-amount" type="number" min="1" required></label><label>Catatan<input id="production-note"></label><div class="usage-box"><div class="panel-heading"><strong>Pemakaian bahan baku</strong><button class="text-button" type="button" id="add-usage">＋ Tambah baris</button></div><div id="usage-fields"></div></div><button class="primary-button" type="submit">Simpan produksi</button><p class="form-message"></p></form></div>
+  <div class="modal-backdrop" id="sale-modal"><form class="modal action-form"><button type="button" class="close-button" data-close-modal>×</button><p class="eyebrow">Kasir</p><h2>Catat penjualan</h2><label>Nomor nota<input id="sale-number" required></label><label>Pelanggan<input id="sale-customer" value="Umum" required></label><div class="usage-box"><div class="panel-heading"><strong>Barang terjual</strong><button class="text-button" type="button" id="add-sale-item">＋ Tambah baris</button></div><div id="sale-fields"></div></div><button class="primary-button" type="submit">Simpan penjualan</button><p class="form-message"></p></form></div>
+  <div class="modal-backdrop" id="sale-detail-modal"><div class="modal"><button type="button" class="close-button" data-close-modal>×</button><p class="eyebrow">Detail transaksi</p><h2 id="detail-sale-number">Detail penjualan</h2><p id="detail-sale-meta" class="modal-copy"></p><div class="table-wrap"><table><thead><tr><th>Produk</th><th>Qty</th><th>Harga</th><th class="align-right">Subtotal</th></tr></thead><tbody id="sale-detail-table"></tbody></table></div><div class="detail-total"><span>Total</span><strong id="detail-sale-total">Rp 0</strong></div></div></div>
+  <div class="toast" id="toast"></div><script src="/app.js"></script>
+</body>
+</html>
