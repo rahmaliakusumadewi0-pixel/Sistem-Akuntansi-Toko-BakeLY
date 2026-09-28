@@ -86,6 +86,20 @@ create table if not exists mutasi_stok (
   check ((bahan_baku_id is not null) <> (produk_id is not null))
 );
 
+create table if not exists app_user_access (
+  user_id uuid primary key references auth.users(id) on delete cascade
+);
+
+alter table app_user_access enable row level security;
+revoke all on table app_user_access from anon, authenticated;
+
+create or replace function is_app_user() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.app_user_access where user_id = auth.uid());
+$$;
+revoke all on function is_app_user() from public, anon;
+grant execute on function is_app_user() to authenticated;
+
 alter table bahan_baku enable row level security;
 alter table produk enable row level security;
 alter table penjualan enable row level security;
@@ -108,36 +122,62 @@ drop policy if exists "public update bahan baku" on bahan_baku;
 drop policy if exists "public delete bahan baku" on bahan_baku;
 drop policy if exists "public update produk" on produk;
 drop policy if exists "public delete produk" on produk;
-create policy "public read bahan baku" on bahan_baku for select to anon using (true);
-create policy "public read produk" on produk for select to anon using (true);
-create policy "public read penjualan" on penjualan for select to anon using (true);
-create policy "public read detail penjualan" on detail_penjualan for select to anon using (true);
-create policy "public read produksi" on produksi for select to anon using (true);
-create policy "public read pemakaian bb" on pemakaian_bb for select to anon using (true);
-create policy "public read mutasi stok" on mutasi_stok for select to anon using (true);
-create policy "public insert bahan baku" on bahan_baku for insert to anon with check (true);
-create policy "public insert penjualan" on penjualan for insert to anon with check (true);
-create policy "public insert produk" on produk for insert to anon with check (true);
-create policy "public update bahan baku" on bahan_baku for update to anon using (true) with check (true);
-create policy "public delete bahan baku" on bahan_baku for delete to anon using (true);
-create policy "public update produk" on produk for update to anon using (true) with check (true);
-create policy "public delete produk" on produk for delete to anon using (true);
+drop policy if exists "app access bahan baku" on bahan_baku;
+drop policy if exists "app access produk" on produk;
+drop policy if exists "app read penjualan" on penjualan;
+drop policy if exists "app read detail penjualan" on detail_penjualan;
+drop policy if exists "app read produksi" on produksi;
+drop policy if exists "app read pemakaian bb" on pemakaian_bb;
+drop policy if exists "app read mutasi stok" on mutasi_stok;
+do $$
+declare
+  old_policy record;
+begin
+  for old_policy in
+    select schemaname, tablename, policyname
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = any (array['bahan_baku', 'produk', 'penjualan', 'detail_penjualan', 'produksi', 'pemakaian_bb', 'mutasi_stok'])
+  loop
+    execute format('drop policy if exists %I on %I.%I', old_policy.policyname, old_policy.schemaname, old_policy.tablename);
+  end loop;
+end;
+$$;
+create policy "app access bahan baku" on bahan_baku for all to authenticated using (public.is_app_user()) with check (public.is_app_user());
+create policy "app access produk" on produk for all to authenticated using (public.is_app_user()) with check (public.is_app_user());
+create policy "app read penjualan" on penjualan for select to authenticated using (public.is_app_user());
+create policy "app read detail penjualan" on detail_penjualan for select to authenticated using (public.is_app_user());
+create policy "app read produksi" on produksi for select to authenticated using (public.is_app_user());
+create policy "app read pemakaian bb" on pemakaian_bb for select to authenticated using (public.is_app_user());
+create policy "app read mutasi stok" on mutasi_stok for select to authenticated using (public.is_app_user());
+
+revoke all on table bahan_baku, produk, penjualan, detail_penjualan, produksi, pemakaian_bb, mutasi_stok from public, anon, authenticated;
+grant select, insert, update, delete on table bahan_baku, produk to authenticated;
+grant select on table penjualan, detail_penjualan, produksi, pemakaian_bb, mutasi_stok to authenticated;
 
 create or replace function log_mutasi_bahan_baku() returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  movement_type text := coalesce(nullif(current_setting('bakely.stock_movement_type', true), ''), 'koreksi');
+  reference_id uuid := nullif(current_setting('bakely.stock_reference_id', true), '')::uuid;
+  movement_note text := coalesce(nullif(current_setting('bakely.stock_note', true), ''), 'Perubahan stok manual');
 begin
   if new.stok <> old.stok then
-    insert into mutasi_stok (tipe, bahan_baku_id, jumlah, stok_sebelum, stok_sesudah, catatan)
-    values ('koreksi', new.id, new.stok - old.stok, old.stok, new.stok, 'Perubahan stok bahan baku');
+    insert into mutasi_stok (tipe, bahan_baku_id, jumlah, stok_sebelum, stok_sesudah, referensi_id, catatan)
+    values (movement_type, new.id, new.stok - old.stok, old.stok, new.stok, reference_id, movement_note);
   end if;
   return new;
 end;
 $$;
 
 create or replace function log_mutasi_produk() returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  movement_type text := coalesce(nullif(current_setting('bakely.stock_movement_type', true), ''), 'koreksi');
+  reference_id uuid := nullif(current_setting('bakely.stock_reference_id', true), '')::uuid;
+  movement_note text := coalesce(nullif(current_setting('bakely.stock_note', true), ''), 'Perubahan stok manual');
 begin
   if new.stok <> old.stok then
-    insert into mutasi_stok (tipe, produk_id, jumlah, stok_sebelum, stok_sesudah, catatan)
-    values ('koreksi', new.id, new.stok - old.stok, old.stok, new.stok, 'Perubahan stok barang jadi');
+    insert into mutasi_stok (tipe, produk_id, jumlah, stok_sebelum, stok_sesudah, referensi_id, catatan)
+    values (movement_type, new.id, new.stok - old.stok, old.stok, new.stok, reference_id, movement_note);
   end if;
   return new;
 end;
@@ -161,6 +201,7 @@ declare
   material_id uuid;
   usage_amount numeric;
 begin
+  if not public.is_app_user() then raise exception using errcode = '42501', message = 'Akun ini belum diberi akses'; end if;
   if nullif(trim(p_nomor_produksi), '') is null or p_jumlah <= 0 then
     raise exception 'Nomor dan jumlah produksi wajib diisi';
   end if;
@@ -171,11 +212,16 @@ begin
   values (p_nomor_produksi, p_produk_id, p_jumlah, p_catatan)
   returning id into production_id;
 
+  perform set_config('bakely.stock_movement_type', 'produksi', true);
+  perform set_config('bakely.stock_reference_id', production_id::text, true);
+  perform set_config('bakely.stock_note', 'Penambahan stok dari produksi', true);
   update produk set stok = stok + p_jumlah where id = p_produk_id;
 
   for usage_item in select * from jsonb_array_elements(p_pemakaian) loop
     material_id := (usage_item->>'bahan_baku_id')::uuid;
     usage_amount := (usage_item->>'jumlah')::numeric;
+    perform set_config('bakely.stock_movement_type', 'pemakaian_bb', true);
+    perform set_config('bakely.stock_note', 'Pemakaian bahan pada produksi', true);
     update bahan_baku set stok = stok - usage_amount
     where id = material_id and stok >= usage_amount;
     if not found then raise exception 'Stok bahan baku tidak mencukupi'; end if;
@@ -189,7 +235,8 @@ $$;
 create or replace function catat_penjualan(
   p_nomor_nota text,
   p_pelanggan text,
-  p_items jsonb
+  p_items jsonb,
+  p_status text default 'lunas'
 ) returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   sale_id uuid;
@@ -199,16 +246,21 @@ declare
   item_amount numeric;
   item_price numeric;
 begin
+  if not public.is_app_user() then raise exception using errcode = '42501', message = 'Akun ini belum diberi akses'; end if;
+  if p_status not in ('lunas', 'piutang') then raise exception 'Status pembayaran tidak valid'; end if;
   if nullif(trim(p_nomor_nota), '') is null or p_items is null or jsonb_array_length(p_items) = 0 then
     raise exception 'Nomor nota dan minimal satu barang wajib diisi';
   end if;
   insert into penjualan (nomor_nota, pelanggan, total, status)
-  values (p_nomor_nota, p_pelanggan, 0, 'lunas') returning id into sale_id;
+  values (p_nomor_nota, p_pelanggan, 0, p_status) returning id into sale_id;
   for item in select * from jsonb_array_elements(p_items) loop
     product_id := (item->>'produk_id')::uuid;
     item_amount := (item->>'jumlah')::numeric;
     select harga_jual into item_price from produk where id = product_id and stok >= item_amount;
     if not found then raise exception 'Stok barang jadi tidak mencukupi'; end if;
+    perform set_config('bakely.stock_movement_type', 'penjualan', true);
+    perform set_config('bakely.stock_reference_id', sale_id::text, true);
+    perform set_config('bakely.stock_note', 'Pengurangan stok dari penjualan', true);
     update produk set stok = stok - item_amount where id = product_id;
     sale_total := sale_total + (item_amount * item_price);
     insert into detail_penjualan (penjualan_id, produk_id, jumlah, harga_satuan)
@@ -219,8 +271,46 @@ begin
 end;
 $$;
 
-grant execute on function catat_produksi(text, uuid, numeric, text, jsonb) to anon;
-grant execute on function catat_penjualan(text, text, jsonb) to anon;
+drop function if exists catat_penjualan(text, text, jsonb);
+revoke all on function catat_produksi(text, uuid, numeric, text, jsonb) from public, anon;
+revoke all on function catat_penjualan(text, text, jsonb, text) from public, anon;
+grant execute on function catat_produksi(text, uuid, numeric, text, jsonb) to authenticated;
+grant execute on function catat_penjualan(text, text, jsonb, text) to authenticated;
+
+create or replace function app_access_check() returns boolean
+language sql stable security definer set search_path = public as $$
+  select public.is_app_user();
+$$;
+revoke all on function app_access_check() from public, anon;
+grant execute on function app_access_check() to authenticated;
+
+create or replace function ringkasan_produksi() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare
+  result jsonb;
+begin
+  if not public.is_app_user() then raise exception using errcode = '42501', message = 'Akun ini belum diberi akses'; end if;
+  select jsonb_build_object('total', coalesce(sum(jumlah), 0), 'count', count(*)) into result
+  from public.produksi;
+  return result;
+end;
+$$;
+revoke all on function ringkasan_produksi() from public, anon;
+grant execute on function ringkasan_produksi() to authenticated;
+
+create or replace function ringkasan_penjualan() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare
+  result jsonb;
+begin
+  if not public.is_app_user() then raise exception using errcode = '42501', message = 'Akun ini belum diberi akses'; end if;
+  select jsonb_build_object('total', coalesce(sum(total), 0), 'count', count(*)) into result
+  from public.penjualan where status <> 'batal';
+  return result;
+end;
+$$;
+revoke all on function ringkasan_penjualan() from public, anon;
+grant execute on function ringkasan_penjualan() to authenticated;
 
 -- Data awal demo bakery. Aman dijalankan ulang karena memakai id tetap.
 insert into bahan_baku (id, nama, satuan, stok, stok_minimum, harga_satuan) values
