@@ -1,21 +1,39 @@
+const CONFIG_STORAGE_KEY = 'bakely-supabase-config';
+function readConfig() {
+  try { return JSON.parse(localStorage.getItem(CONFIG_STORAGE_KEY)) || { url: '', key: '' }; }
+  catch { return { url: '', key: '' }; }
+}
 const state = {
-  config: { url: 'https://kjoyivzexlbqytccoczs.supabase.co', key: 'sb_publishable_W3Rybv-DV6yXj1N5bMxFmA_cklC0xuC' },
+  config: readConfig(),
   sales: [], materials: [], products: [], productions: [], usages: []
 };
 const $ = (selector) => document.querySelector(selector);
 const rupiah = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value || 0));
 const quantity = (value) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(Number(value || 0));
 const dateId = (value) => new Date(value).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
-const headers = () => ({ 'x-supabase-url': state.config.url, 'x-supabase-key': state.config.key });
-
 async function api(path, options = {}) {
-  const response = await fetch(`/api/${path}`, { ...options, headers: { ...headers(), ...(options.headers || {}) } });
+  if (!state.config.url || !state.config.key) throw new Error('Masukkan URL dan key Supabase terlebih dahulu.');
+  const baseUrl = state.config.url.replace(/\/+$/, '');
+  const response = await fetch(`${baseUrl}/rest/v1/${path}`, {
+    ...options,
+    headers: {
+      apikey: state.config.key,
+      Prefer: 'return=representation',
+      ...(options.headers || {})
+    }
+  });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.message || body.error || 'Permintaan gagal.');
   return body;
 }
 async function rpc(name, payload) { return api(`rpc/${name}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); }
 async function loadData() {
+  if (!state.config.url || !state.config.key) {
+    $('#connection-label').textContent = 'Supabase belum diatur';
+    $('.status-dot').style.background = '#cf9361';
+    openModal('#settings-modal');
+    return;
+  }
   try {
     const results = await Promise.allSettled([
       api('penjualan?select=*&order=tanggal.desc&limit=30'), api('bahan_baku?select=*&order=nama.asc'), api('produk?select=*&order=nama.asc'),
@@ -23,9 +41,19 @@ async function loadData() {
     ]);
     const [sales, materials, products, productions, usages] = results.map((result) => result.status === 'fulfilled' ? result.value : []);
     state.sales = sales; state.materials = materials; state.products = products; state.productions = productions; state.usages = usages;
-    const hasSchemaWarning = results.some((result) => result.status === 'rejected');
-    $('#connection-label').textContent = hasSchemaWarning ? 'Supabase terhubung' : 'Supabase terhubung'; $('.status-dot').style.background = '#91bd7f'; render();
-    if (hasSchemaWarning) showToast('Koneksi aktif. Jalankan schema terbaru untuk data Pemakaian BB.');
+    const failures = results.filter((result) => result.status === 'rejected');
+    if (failures.length === results.length) {
+      $('#connection-label').textContent = 'Koneksi gagal';
+      $('.status-dot').style.background = '#c86e7b';
+    } else if (failures.length) {
+      $('#connection-label').textContent = 'Koneksi sebagian';
+      $('.status-dot').style.background = '#cf9361';
+    } else {
+      $('#connection-label').textContent = 'Supabase terhubung';
+      $('.status-dot').style.background = '#91bd7f';
+    }
+    render();
+    if (failures.length) showToast(failures[0].reason?.message || 'Sebagian data gagal dimuat.');
   } catch (error) { $('#connection-label').textContent = 'Koneksi gagal'; showToast(error.message); render(); }
 }
 function emptyRow(columns, text = 'Belum ada data.') { return `<tr><td colspan="${columns}" class="empty-state">${text}</td></tr>`; }
@@ -76,6 +104,12 @@ function addSaleRow() { $('#sale-fields').insertAdjacentHTML('beforeend', '<div 
 function openModal(id) { $(id).classList.add('visible'); if (id === '#production-modal' && !$('#usage-fields').children.length) addUsageRow(); if (id === '#sale-modal' && !$('#sale-fields').children.length) addSaleRow(); }
 function closeModal(modal) { modal.classList.remove('visible'); const message = modal.querySelector('.form-message'); if (message) message.textContent = ''; }
 function showToast(message) { const toast = $('#toast'); toast.textContent = message; toast.classList.add('visible'); setTimeout(() => toast.classList.remove('visible'), 3500); }
+function showSettings() {
+  $('#supabase-url').value = state.config.url;
+  $('#supabase-key').value = state.config.key;
+  $('#settings-form .form-message').textContent = '';
+  openModal('#settings-modal');
+}
 function goToView(view) { document.querySelectorAll('.view').forEach((section) => section.classList.remove('active-view')); $(`#${view}-view`).classList.add('active-view'); document.querySelectorAll('.nav-item').forEach((item) => item.classList.toggle('active', item.dataset.view === view)); const titles = { dashboard: ['Ringkasan usaha', 'Sistem Akuntansi Bakely'], bahan: ['Master data', 'Bahan baku'], produk: ['Master data', 'Barang jadi'], pemakaian: ['Transaksi', 'Pemakaian bahan baku'], produksi: ['Transaksi', 'Produksi'], penjualan: ['Transaksi', 'Penjualan'], laporan: ['Analisis usaha', 'Laporan bakery'] }; $('#page-kicker').textContent = titles[view][0]; $('#page-title').textContent = titles[view][1]; }
 
 document.querySelectorAll('.nav-item, [data-view-link]').forEach((button) => button.addEventListener('click', () => goToView(button.dataset.view || button.dataset.viewLink)));
@@ -89,4 +123,21 @@ $('#material-modal form').addEventListener('submit', async (event) => { event.pr
 $('#product-modal form').addEventListener('submit', async (event) => { event.preventDefault(); const id = $('#product-id').value; const payload = { kode_produk: $('#product-code').value, nama: $('#product-name').value, harga_jual: Number($('#product-price').value), stok: Number($('#product-stock').value), satuan: $('#product-unit').value, aktif: true }; try { await api(id ? `produk?id=eq.${id}` : 'produk', { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); closeModal($('#product-modal')); event.currentTarget.reset(); $('#product-id').value = ''; $('#product-modal-title').textContent = 'Tambah barang jadi'; await loadData(); showToast('Produk disimpan.'); } catch (error) { event.currentTarget.querySelector('.form-message').textContent = error.message; } });
 $('#production-modal form').addEventListener('submit', async (event) => { event.preventDefault(); const usage = [...document.querySelectorAll('#usage-fields .dynamic-row')].map((row) => ({ bahan_baku_id: row.querySelector('.usage-material').value, jumlah: Number(row.querySelector('.usage-amount').value) })).filter((item) => item.bahan_baku_id && item.jumlah > 0); try { await rpc('catat_produksi', { p_nomor_produksi: $('#production-number').value, p_produk_id: $('#production-product').value, p_jumlah: Number($('#production-amount').value), p_catatan: $('#production-note').value || null, p_pemakaian: usage }); closeModal($('#production-modal')); event.currentTarget.reset(); $('#usage-fields').innerHTML = ''; await loadData(); showToast('Produksi dicatat dan stok diperbarui.'); } catch (error) { event.currentTarget.querySelector('.form-message').textContent = error.message; } });
 $('#sale-modal form').addEventListener('submit', async (event) => { event.preventDefault(); const items = [...document.querySelectorAll('#sale-fields .dynamic-row')].map((row) => ({ produk_id: row.querySelector('.sale-product').value, jumlah: Number(row.querySelector('.sale-amount').value) })).filter((item) => item.produk_id && item.jumlah > 0); try { await rpc('catat_penjualan', { p_nomor_nota: $('#sale-number').value, p_pelanggan: $('#sale-customer').value, p_items: items }); closeModal($('#sale-modal')); event.currentTarget.reset(); $('#sale-fields').innerHTML = ''; await loadData(); showToast('Penjualan dicatat dan stok barang jadi berkurang.'); } catch (error) { event.currentTarget.querySelector('.form-message').textContent = error.message; } });
-$('#settings-button').addEventListener('click', () => showToast(`Terhubung ke ${state.config.url}`)); $('#today').textContent = new Intl.DateTimeFormat('id-ID', { dateStyle: 'full' }).format(new Date()); loadData();
+$('#settings-button').addEventListener('click', showSettings);
+$('#settings-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const url = $('#supabase-url').value.trim().replace(/\/+$/, '');
+  const key = $('#supabase-key').value.trim();
+  try {
+    const parsedUrl = new URL(url);
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error('URL Supabase harus menggunakan HTTP atau HTTPS.');
+    state.config = { url, key };
+    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(state.config));
+    closeModal($('#settings-modal'));
+    $('#connection-label').textContent = 'Menghubungkan...';
+    await loadData();
+  } catch (error) {
+    event.currentTarget.querySelector('.form-message').textContent = error.message;
+  }
+});
+$('#today').textContent = new Intl.DateTimeFormat('id-ID', { dateStyle: 'full' }).format(new Date()); loadData();
