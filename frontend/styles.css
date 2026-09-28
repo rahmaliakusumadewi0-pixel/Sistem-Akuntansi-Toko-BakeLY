@@ -58,3 +58,64 @@ body{background:#faf7f0}.sidebar{background:var(--brown)}.brand em{color:#e2b878
 .text-button{color:#7c4f3b}
 .table-link{color:#7a4d3d}
 .sidebar-foot .status-dot{background:#79a267}
+
+.menu-toggle{display:none;flex:0 0 40px;width:40px;height:40px;place-items:center;border:1px solid var(--line);border-radius:12px;background:#fffdf9;color:var(--brown);font-size:20px;cursor:pointer;box-shadow:0 4px 12px rgba(78,51,37,.07)}
+.sidebar-backdrop{display:none}
+.hero-visual:before{content:'🥐';position:absolute;left:14px;bottom:12px;display:grid;place-items:center;width:42px;height:42px;border:1px solid rgba(120,89,66,.1);border-radius:14px;background:#fff8ef;font-size:23px;transform:rotate(-9deg);box-shadow:0 6px 14px rgba(88,58,37,.08)}
+.hero-visual:after{content:'✦';position:absolute;right:22px;top:38px;color:#c77d4e;font-size:19px;animation:bakery-sparkle 2.6s ease-in-out infinite}
+.bread-illustration{animation:bread-arrive .65s cubic-bezier(.2,.8,.2,1) both}
+.feature-icon{transition:transform .2s ease,background .2s ease}
+.feature-card:hover .feature-icon{transform:rotate(-8deg) scale(1.08);background:#f7dfc7}
+.feature-card:nth-child(2) .feature-icon{background:#edf2e8}
+.feature-card:nth-child(3) .feature-icon{background:#f8e8db}
+@keyframes bakery-sparkle{0%,100%{opacity:.55;transform:scale(.9) rotate(-8deg)}50%{opacity:1;transform:scale(1.13) rotate(8deg)}}
+@keyframes bread-arrive{from{opacity:0;transform:translateY(8px) rotate(-3deg)}to{opacity:1;transform:translateY(0) rotate(0)}}
+@media(max-width:850px){
+  body.menu-open{overflow:hidden}
+  .shell{display:block}
+  .sidebar{position:fixed;z-index:12;inset:0 auto 0 0;width:min(84vw,310px);height:100vh;height:100dvh;padding:28px 20px;transform:translateX(-105%);transition:transform .24s cubic-bezier(.2,.8,.2,1);box-shadow:12px 0 36px rgba(48,31,25,.22)}
+  .sidebar.sidebar-open{transform:translateX(0)}
+  .sidebar .brand{justify-content:flex-start}
+  .sidebar .brand>span:last-child{display:block}
+  .sidebar .eyebrow{display:block;font-size:10px;margin:36px 12px 12px}
+  .sidebar .nav-item{display:flex;justify-content:flex-start;width:100%;padding:12px 13px;font-size:14px}
+  .sidebar .nav-item span{font-size:18px}
+  .sidebar-foot{justify-content:flex-start}
+  .sidebar-foot span:not(.status-dot),.sidebar-foot button{display:block}
+  .sidebar-backdrop.visible{display:block;position:fixed;z-index:11;inset:0;width:100%;height:100%;border:0;background:rgba(40,28,23,.38);backdrop-filter:blur(2px)}
+  .main-content{max-width:none;width:100%;padding:24px clamp(18px,4vw,34px)}
+  .topbar{display:grid;grid-template-columns:40px minmax(0,1fr) auto;align-items:center;gap:13px;margin-bottom:25px}
+  .menu-toggle{display:grid}
+  .topbar h1{font-size:23px}
+  .topbar .eyebrow{margin-bottom:5px}
+}
+@media(max-width:560px){
+  .main-content{padding:18px 15px 28px}
+  .topbar{grid-template-columns:40px minmax(0,1fr);gap:11px;margin-bottom:21px}
+  .topbar>div:first-of-type{min-width:0}
+  .topbar h1{font-size:19px;line-height:1.2}
+  .date-stamp{grid-column:2;margin:0;padding:0;background:none;font-size:10px}
+  .hero-strip{min-height:0;padding:22px 20px;gap:14px;border-radius:18px}
+  .hero-copy h2{font-size:24px;max-width:340px}
+  .hero-copy p{font-size:13px;line-height:1.5}
+  .hero-meta{gap:7px}
+  .hero-meta span{font-size:10px;padding:6px 9px;border-radius:10px}
+  .hero-visual{height:122px;max-width:none;border-radius:16px}
+  .bread-illustration{transform:scale(.88)}
+  .hero-visual:before{left:12px;bottom:9px;width:36px;height:36px;font-size:20px}
+  .hero-visual:after{right:18px;top:24px}
+  .metric-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:16px 0 22px}
+  .metric-card{min-width:0;min-height:128px;padding:14px;border-radius:14px}
+  .metric-card strong{font-size:18px;overflow-wrap:anywhere}
+  .feature-strip{grid-template-columns:1fr;gap:9px;margin:16px 0 20px}
+  .feature-card{padding:13px 14px;border-radius:13px}
+  .feature-icon{width:40px;height:40px;flex:0 0 40px}
+  .dashboard-grid{gap:13px;margin-bottom:13px}
+  .panel{padding:17px;border-radius:15px}
+  .panel h3{font-size:16px}
+}
+.dashboard-grid>.panel,.report-panels>.panel{min-width:0}
+.table-wrap{min-width:0;max-width:100%}
+@media(prefers-reduced-motion:reduce){
+  *,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}

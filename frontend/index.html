@@ -5,11 +5,11 @@
   <title>Bakely | Sistem Akuntansi Bakery</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260928-8">
 </head>
 <body>
   <div class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
       <div class="brand"><span class="brand-mark">✦</span><span>bakely<br><em>ledger</em></span></div>
       <p class="eyebrow">Menu utama</p>
       <nav class="nav-group"><button class="nav-item active" data-view="dashboard"><span>▦</span> Dashboard</button></nav>
@@ -19,8 +19,9 @@
       <nav class="nav-group"><button class="nav-item" data-view="pemakaian"><span>⌁</span> Pemakaian BB</button><button class="nav-item" data-view="produksi"><span>♨</span> Produksi</button><button class="nav-item" data-view="penjualan"><span>↗</span> Penjualan</button><button class="nav-item" data-view="laporan"><span>◫</span> Laporan</button></nav>
       <div class="sidebar-foot"><span class="status-dot"></span><span id="connection-label">Menghubungkan...</span><button id="settings-button" title="Lihat koneksi">⚙</button></div>
     </aside>
+    <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="Tutup menu"></button>
     <main class="main-content">
-      <header class="topbar"><div><p class="eyebrow" id="page-kicker">Ringkasan usaha</p><h1 id="page-title">Sistem Akuntansi Bakely</h1></div><div class="date-stamp" id="today"></div></header>
+      <header class="topbar"><button class="menu-toggle" id="menu-toggle" type="button" aria-label="Buka menu" aria-expanded="false" aria-controls="sidebar"><span id="menu-icon" aria-hidden="true">☰</span></button><div><p class="eyebrow" id="page-kicker">Ringkasan usaha</p><h1 id="page-title">Sistem Akuntansi Bakely</h1></div><div class="date-stamp" id="today"></div></header>
 
       <section id="dashboard-view" class="view active-view">
         <div class="hero-strip">
@@ -138,6 +139,6 @@
   <div class="modal-backdrop" id="production-modal"><form class="modal action-form"><button type="button" class="close-button" data-close-modal>×</button><p class="eyebrow">Dapur produksi</p><h2>Catat produksi</h2><label>Nomor produksi<input id="production-number" required></label><label>Barang jadi<select id="production-product" required></select></label><label>Jumlah produksi<input id="production-amount" type="number" min="1" required></label><label>Catatan<input id="production-note"></label><div class="usage-box"><div class="panel-heading"><strong>Pemakaian bahan baku</strong><button class="text-button" type="button" id="add-usage">＋ Tambah baris</button></div><div id="usage-fields"></div></div><button class="primary-button" type="submit">Simpan produksi</button><p class="form-message"></p></form></div>
   <div class="modal-backdrop" id="sale-modal"><form class="modal action-form"><button type="button" class="close-button" data-close-modal>×</button><p class="eyebrow">Kasir</p><h2>Catat penjualan</h2><label>Nomor nota<input id="sale-number" required></label><label>Pelanggan<input id="sale-customer" value="Umum" required></label><div class="usage-box"><div class="panel-heading"><strong>Barang terjual</strong><button class="text-button" type="button" id="add-sale-item">＋ Tambah baris</button></div><div id="sale-fields"></div></div><button class="primary-button" type="submit">Simpan penjualan</button><p class="form-message"></p></form></div>
   <div class="modal-backdrop" id="sale-detail-modal"><div class="modal"><button type="button" class="close-button" data-close-modal>×</button><p class="eyebrow">Detail transaksi</p><h2 id="detail-sale-number">Detail penjualan</h2><p id="detail-sale-meta" class="modal-copy"></p><div class="table-wrap"><table><thead><tr><th>Produk</th><th>Qty</th><th>Harga</th><th class="align-right">Subtotal</th></tr></thead><tbody id="sale-detail-table"></tbody></table></div><div class="detail-total"><span>Total</span><strong id="detail-sale-total">Rp 0</strong></div></div></div>
-  <div class="toast" id="toast"></div><script src="app.js?v=20260928-7"></script>
+  <div class="toast" id="toast"></div><script src="app.js?v=20260928-8"></script>
 </body>
 </html>

@@ -134,9 +134,20 @@ function showSettings() {
   $('#settings-form .form-message').textContent = '';
   openModal('#settings-modal');
 }
+function setMobileMenu(isOpen) {
+  $('#sidebar').classList.toggle('sidebar-open', isOpen);
+  $('#sidebar-backdrop').classList.toggle('visible', isOpen);
+  $('#menu-toggle').setAttribute('aria-expanded', String(isOpen));
+  $('#menu-toggle').setAttribute('aria-label', isOpen ? 'Tutup menu' : 'Buka menu');
+  $('#menu-icon').textContent = isOpen ? '×' : '☰';
+  document.body.classList.toggle('menu-open', isOpen);
+}
 function goToView(view) { document.querySelectorAll('.view').forEach((section) => section.classList.remove('active-view')); $(`#${view}-view`).classList.add('active-view'); document.querySelectorAll('.nav-item').forEach((item) => item.classList.toggle('active', item.dataset.view === view)); const titles = { dashboard: ['Ringkasan usaha', 'Sistem Akuntansi Bakely'], bahan: ['Master data', 'Bahan baku'], produk: ['Master data', 'Barang jadi'], pemakaian: ['Transaksi', 'Pemakaian bahan baku'], produksi: ['Transaksi', 'Produksi'], penjualan: ['Transaksi', 'Penjualan'], laporan: ['Analisis usaha', 'Laporan bakery'] }; $('#page-kicker').textContent = titles[view][0]; $('#page-title').textContent = titles[view][1]; }
 
-document.querySelectorAll('.nav-item, [data-view-link]').forEach((button) => button.addEventListener('click', () => goToView(button.dataset.view || button.dataset.viewLink)));
+$('#menu-toggle').addEventListener('click', () => setMobileMenu(!$('#sidebar').classList.contains('sidebar-open')));
+$('#sidebar-backdrop').addEventListener('click', () => setMobileMenu(false));
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape') setMobileMenu(false); });
+document.querySelectorAll('.nav-item, [data-view-link]').forEach((button) => button.addEventListener('click', () => { goToView(button.dataset.view || button.dataset.viewLink); setMobileMenu(false); }));
 document.querySelectorAll('[data-open]').forEach((button) => button.addEventListener('click', () => openModal(`#${button.dataset.open}`)));
 document.querySelectorAll('.modal-backdrop').forEach((modal) => modal.addEventListener('click', (event) => { if (event.target === modal || event.target.matches('[data-close-modal]')) closeModal(modal); }));
 document.addEventListener('click', async (event) => { const materialId = event.target.dataset.deleteMaterial; const productId = event.target.dataset.deleteProduct; if (event.target.classList.contains('remove-row')) event.target.closest('.dynamic-row').remove(); if (materialId && confirm('Hapus bahan baku ini?')) { try { await api(`bahan_baku?id=eq.${materialId}`, { method: 'DELETE' }); await loadData(); } catch (error) { showToast(error.message); } } if (productId && confirm('Hapus produk ini?')) { try { await api(`produk?id=eq.${productId}`, { method: 'DELETE' }); await loadData(); } catch (error) { showToast(error.message); } } if (event.target.dataset.editMaterial) { const item = state.materials.find((material) => material.id === event.target.dataset.editMaterial); if (item) { $('#material-id').value = item.id; $('#material-name').value = item.nama; $('#material-unit').value = item.satuan; $('#material-stock').value = item.stok; $('#material-minimum').value = item.stok_minimum; $('#material-price').value = item.harga_satuan; $('#material-modal-title').textContent = 'Edit bahan baku'; openModal('#material-modal'); } } });
