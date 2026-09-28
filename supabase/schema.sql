@@ -86,20 +86,6 @@ create table if not exists mutasi_stok (
   check ((bahan_baku_id is not null) <> (produk_id is not null))
 );
 
-create table if not exists app_user_access (
-  user_id uuid primary key references auth.users(id) on delete cascade
-);
-
-alter table app_user_access enable row level security;
-revoke all on table app_user_access from anon, authenticated;
-
-create or replace function is_app_user() returns boolean
-language sql stable security definer set search_path = public as $$
-  select exists (select 1 from public.app_user_access where user_id = auth.uid());
-$$;
-revoke all on function is_app_user() from public, anon;
-grant execute on function is_app_user() to authenticated;
-
 alter table bahan_baku enable row level security;
 alter table produk enable row level security;
 alter table penjualan enable row level security;
@@ -143,17 +129,20 @@ begin
   end loop;
 end;
 $$;
-create policy "app access bahan baku" on bahan_baku for all to authenticated using (public.is_app_user()) with check (public.is_app_user());
-create policy "app access produk" on produk for all to authenticated using (public.is_app_user()) with check (public.is_app_user());
-create policy "app read penjualan" on penjualan for select to authenticated using (public.is_app_user());
-create policy "app read detail penjualan" on detail_penjualan for select to authenticated using (public.is_app_user());
-create policy "app read produksi" on produksi for select to authenticated using (public.is_app_user());
-create policy "app read pemakaian bb" on pemakaian_bb for select to authenticated using (public.is_app_user());
-create policy "app read mutasi stok" on mutasi_stok for select to authenticated using (public.is_app_user());
+drop function if exists app_access_check();
+drop function if exists is_app_user();
+drop table if exists app_user_access;
+create policy "public access bahan baku" on bahan_baku for all to anon using (true) with check (true);
+create policy "public access produk" on produk for all to anon using (true) with check (true);
+create policy "public read penjualan" on penjualan for select to anon using (true);
+create policy "public read detail penjualan" on detail_penjualan for select to anon using (true);
+create policy "public read produksi" on produksi for select to anon using (true);
+create policy "public read pemakaian bb" on pemakaian_bb for select to anon using (true);
+create policy "public read mutasi stok" on mutasi_stok for select to anon using (true);
 
 revoke all on table bahan_baku, produk, penjualan, detail_penjualan, produksi, pemakaian_bb, mutasi_stok from public, anon, authenticated;
-grant select, insert, update, delete on table bahan_baku, produk to authenticated;
-grant select on table penjualan, detail_penjualan, produksi, pemakaian_bb, mutasi_stok to authenticated;
+grant select, insert, update, delete on table bahan_baku, produk to anon;
+grant select on table penjualan, detail_penjualan, produksi, pemakaian_bb, mutasi_stok to anon;
 
 create or replace function log_mutasi_bahan_baku() returns trigger language plpgsql security definer set search_path = public as $$
 declare
@@ -201,7 +190,6 @@ declare
   material_id uuid;
   usage_amount numeric;
 begin
-  if not public.is_app_user() then raise exception using errcode = '42501', message = 'Akun ini belum diberi akses'; end if;
   if nullif(trim(p_nomor_produksi), '') is null or p_jumlah <= 0 then
     raise exception 'Nomor dan jumlah produksi wajib diisi';
   end if;
@@ -246,7 +234,6 @@ declare
   item_amount numeric;
   item_price numeric;
 begin
-  if not public.is_app_user() then raise exception using errcode = '42501', message = 'Akun ini belum diberi akses'; end if;
   if p_status not in ('lunas', 'piutang') then raise exception 'Status pembayaran tidak valid'; end if;
   if nullif(trim(p_nomor_nota), '') is null or p_items is null or jsonb_array_length(p_items) = 0 then
     raise exception 'Nomor nota dan minimal satu barang wajib diisi';
@@ -272,45 +259,36 @@ end;
 $$;
 
 drop function if exists catat_penjualan(text, text, jsonb);
-revoke all on function catat_produksi(text, uuid, numeric, text, jsonb) from public, anon;
-revoke all on function catat_penjualan(text, text, jsonb, text) from public, anon;
-grant execute on function catat_produksi(text, uuid, numeric, text, jsonb) to authenticated;
-grant execute on function catat_penjualan(text, text, jsonb, text) to authenticated;
-
-create or replace function app_access_check() returns boolean
-language sql stable security definer set search_path = public as $$
-  select public.is_app_user();
-$$;
-revoke all on function app_access_check() from public, anon;
-grant execute on function app_access_check() to authenticated;
+revoke all on function catat_produksi(text, uuid, numeric, text, jsonb) from public, anon, authenticated;
+revoke all on function catat_penjualan(text, text, jsonb, text) from public, anon, authenticated;
+grant execute on function catat_produksi(text, uuid, numeric, text, jsonb) to anon;
+grant execute on function catat_penjualan(text, text, jsonb, text) to anon;
 
 create or replace function ringkasan_produksi() returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 declare
   result jsonb;
 begin
-  if not public.is_app_user() then raise exception using errcode = '42501', message = 'Akun ini belum diberi akses'; end if;
   select jsonb_build_object('total', coalesce(sum(jumlah), 0), 'count', count(*)) into result
   from public.produksi;
   return result;
 end;
 $$;
 revoke all on function ringkasan_produksi() from public, anon;
-grant execute on function ringkasan_produksi() to authenticated;
+grant execute on function ringkasan_produksi() to anon;
 
 create or replace function ringkasan_penjualan() returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 declare
   result jsonb;
 begin
-  if not public.is_app_user() then raise exception using errcode = '42501', message = 'Akun ini belum diberi akses'; end if;
   select jsonb_build_object('total', coalesce(sum(total), 0), 'count', count(*)) into result
   from public.penjualan where status <> 'batal';
   return result;
 end;
 $$;
 revoke all on function ringkasan_penjualan() from public, anon;
-grant execute on function ringkasan_penjualan() to authenticated;
+grant execute on function ringkasan_penjualan() to anon;
 
 -- Data awal demo bakery. Aman dijalankan ulang karena memakai id tetap.
 insert into bahan_baku (id, nama, satuan, stok, stok_minimum, harga_satuan) values
