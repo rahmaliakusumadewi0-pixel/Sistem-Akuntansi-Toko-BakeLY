@@ -5,31 +5,52 @@ function readConfig() {
 }
 const state = {
   config: readConfig(),
-  sales: [], salesSummary: { total: 0, count: 0 }, materials: [], products: [], productions: [], productionSummary: { total: 0, count: 0 }, usages: []
+  sales: [], salesReport: [], salesSummary: { total: 0, count: 0 }, materials: [], products: [], productions: [], productionSummary: { total: 0, count: 0 }, usages: []
 };
 const $ = (selector) => document.querySelector(selector);
 const rupiah = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value || 0));
 const quantity = (value) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(Number(value || 0));
 const dateId = (value) => new Date(value).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
 async function api(path, options = {}) {
-  if (!state.config.url || !state.config.key) throw new Error('Masukkan URL dan key Supabase terlebih dahulu.');
-  const baseUrl = state.config.url.replace(/\/+$/, '');
-  const response = await fetch(`${baseUrl}/rest/v1/${path}`, {
-    ...options,
-    headers: {
-      apikey: state.config.key,
-      Prefer: 'return=representation',
-      ...(options.headers || {})
-    }
-  });
+  return requestApi(state.config, path, options);
+}
+async function requestApi(config, path, options = {}) {
+  if (!config.url || !config.key) throw new Error('Masukkan URL dan key Supabase terlebih dahulu.');
+  const baseUrl = config.url.replace(/\/+$/, '');
+  let response;
+  try {
+    response = await fetch(`${baseUrl}/rest/v1/${path}`, {
+      ...options,
+      headers: {
+        apikey: config.key,
+        Authorization: `Bearer ${config.key}`,
+        Prefer: 'return=representation',
+        ...(options.headers || {})
+      }
+    });
+  } catch (error) {
+    if (error instanceof TypeError) throw new Error(`Tidak dapat menghubungi Supabase. Periksa Project URL, koneksi internet, dan pengaturan CORS. ${error.message}`);
+    throw error;
+  }
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = new Error(body.message || body.error || 'Permintaan gagal.');
+    let message = body.message || body.error || 'Permintaan gagal.';
+    if (response.status === 401) message = 'API key tidak valid atau bukan milik Project URL ini.';
+    else if (response.status === 403 || body.code === '42501') message = 'Akses ditolak. Periksa Row Level Security (RLS) dan izin role anon pada schema.sql.';
+    else if (['PGRST205', '42P01'].includes(body.code)) message = 'Tabel Supabase belum tersedia. Jalankan seluruh supabase/schema.sql di SQL Editor project ini.';
+    else if (body.code === 'PGRST202') message = 'Fungsi database belum tersedia. Jalankan seluruh supabase/schema.sql di SQL Editor project ini.';
+    else if (body.code) message = `${message} (${body.code})`;
+    if (body.hint) message += ` Petunjuk: ${body.hint}`;
+    const error = new Error(message);
     error.status = response.status;
     error.code = body.code;
     throw error;
   }
   return body;
+}
+async function testConnection(config) {
+  const tables = ['bahan_baku', 'produk', 'penjualan', 'detail_penjualan', 'produksi', 'pemakaian_bb', 'mutasi_stok'];
+  await Promise.all(tables.map((table) => requestApi(config, `${table}?select=id&limit=1`)));
 }
 async function rpc(name, payload) { return api(`rpc/${name}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); }
 async function apiAll(path, pageSize = 1000) {
@@ -54,12 +75,12 @@ async function loadData() {
     const results = await Promise.allSettled([
       api('penjualan?select=*&order=tanggal.desc&limit=30'), api('bahan_baku?select=*&order=nama.asc'), api('produk?select=*&order=nama.asc'),
       api('produksi?select=*,produk(nama)&order=tanggal.desc&limit=30'), api('pemakaian_bb?select=*,bahan_baku(nama,satuan),produksi(nomor_produksi,tanggal)&order=created_at.desc&limit=50'),
-      apiAll('penjualan?select=total,status&order=tanggal.desc'), apiAll('produksi?select=jumlah')
+      apiAll('penjualan?select=nomor_nota,tanggal,pelanggan,total,status&order=tanggal.desc'), apiAll('produksi?select=jumlah')
     ]);
     const [sales, materials, products, productions, usages, allSales, allProductions] = results.map((result) => result.status === 'fulfilled' ? result.value : []);
     const salesSummary = allSales.reduce((summary, sale) => sale.status === 'batal' ? summary : { total: summary.total + Number(sale.total || 0), count: summary.count + 1 }, { total: 0, count: 0 });
     const productionSummary = allProductions.reduce((summary, production) => ({ total: summary.total + Number(production.jumlah || 0), count: summary.count + 1 }), { total: 0, count: 0 });
-    state.sales = sales; state.salesSummary = salesSummary; state.materials = materials; state.products = products; state.productions = productions; state.productionSummary = productionSummary; state.usages = usages;
+    state.sales = sales; state.salesReport = allSales; state.salesSummary = salesSummary; state.materials = materials; state.products = products; state.productions = productions; state.productionSummary = productionSummary; state.usages = usages;
     const failures = results.filter((result) => result.status === 'rejected');
     if (failures.length === results.length) {
       $('#connection-label').textContent = 'Koneksi gagal';
@@ -120,6 +141,31 @@ function renderReports() {
   $('#report-sales-table').innerHTML = recentSales.length ? recentSales.slice(0, 6).map((sale) => `<tr><td><button class="table-link" data-sale-detail="${sale.id}">${sale.nomor_nota}</button></td><td>${sale.pelanggan}</td><td>${dateId(sale.tanggal)}</td><td class="align-right">${rupiah(sale.total)}</td></tr>`).join('') : emptyRow(4);
   $('#report-stock-table').innerHTML = lowStock.length ? lowStock.slice(0, 6).map((item) => `<tr><td>${item.nama}</td><td>${item.stok} ${item.satuan}</td><td>${item.stok_minimum}</td><td><span class="stock-warning">Urgent</span></td></tr>`).join('') : '<tr><td colspan="4"><p class="empty-state">Semua stok aman.</p></td></tr>';
 }
+function exportSalesCsv() {
+  const rows = [
+    ['Nomor nota', 'Tanggal', 'Pelanggan', 'Status', 'Total (IDR)'],
+    ...state.salesReport.map((sale) => [
+      sale.nomor_nota,
+      new Date(sale.tanggal).toISOString(),
+      sale.pelanggan,
+      sale.status,
+      Number(sale.total || 0)
+    ])
+  ];
+  const csv = `\uFEFF${rows.map((row) => row.map((value) => {
+    const text = String(value ?? '');
+    const safeText = /^[\t\r\n=+\-@]/.test(text) ? `'${text}` : text;
+    return `"${safeText.replace(/"/g, '""')}"`;
+  }).join(',')).join('\r\n')}`;
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `laporan-penjualan-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 function productionRow(item, full) { const productionNumber = item.nomor_produksi || item.nomor || item.kode_produksi || '-'; return `<tr><td>${productionNumber}</td><td>${item.produk?.nama || '-'}</td><td>${item.jumlah} pcs</td><td>${dateId(item.tanggal)}</td>${full ? `<td>${item.catatan || '-'}</td>` : ''}</tr>`; }
 function renderChart() { const items = state.sales.slice(0, 7).reverse(); const max = Math.max(...items.map((item) => Number(item.total)), 1); return items.length ? items.map((item) => `<div class="bar-wrap"><div class="bar" style="height:${Math.max(8, Number(item.total) / max * 100)}%" title="${rupiah(item.total)}"></div><small>${dateId(item.tanggal)}<br>${rupiah(item.total)}</small></div>`).join('') : '<p class="empty-state">Belum ada transaksi untuk grafik.</p>'; }
 function refreshSelects() { const products = state.products.map((item) => `<option value="${item.id}">${item.nama} (${item.stok} ${item.satuan})</option>`).join(''); $('#production-product').innerHTML = products; document.querySelectorAll('.usage-material').forEach((select) => { const current = select.value; select.innerHTML = state.materials.map((item) => `<option value="${item.id}">${item.nama}</option>`).join(''); select.value = current; }); document.querySelectorAll('.sale-product').forEach((select) => { const current = select.value; select.innerHTML = state.products.map((item) => `<option value="${item.id}">${item.nama} (${rupiah(item.harga_jual)})</option>`).join(''); select.value = current; }); }
@@ -149,6 +195,7 @@ $('#sidebar-backdrop').addEventListener('click', () => setMobileMenu(false));
 document.addEventListener('keydown', (event) => { if (event.key === 'Escape') setMobileMenu(false); });
 document.querySelectorAll('.nav-item, [data-view-link]').forEach((button) => button.addEventListener('click', () => { goToView(button.dataset.view || button.dataset.viewLink); setMobileMenu(false); }));
 document.querySelectorAll('[data-open]').forEach((button) => button.addEventListener('click', () => openModal(`#${button.dataset.open}`)));
+$('#export-sales').addEventListener('click', exportSalesCsv);
 document.querySelectorAll('.modal-backdrop').forEach((modal) => modal.addEventListener('click', (event) => { if (event.target === modal || event.target.matches('[data-close-modal]')) closeModal(modal); }));
 document.addEventListener('click', async (event) => { const materialId = event.target.dataset.deleteMaterial; const productId = event.target.dataset.deleteProduct; if (event.target.classList.contains('remove-row')) event.target.closest('.dynamic-row').remove(); if (materialId && confirm('Hapus bahan baku ini?')) { try { await api(`bahan_baku?id=eq.${materialId}`, { method: 'DELETE' }); await loadData(); } catch (error) { showToast(error.message); } } if (productId && confirm('Hapus produk ini?')) { try { await api(`produk?id=eq.${productId}`, { method: 'DELETE' }); await loadData(); } catch (error) { showToast(error.message); } } if (event.target.dataset.editMaterial) { const item = state.materials.find((material) => material.id === event.target.dataset.editMaterial); if (item) { $('#material-id').value = item.id; $('#material-name').value = item.nama; $('#material-unit').value = item.satuan; $('#material-stock').value = item.stok; $('#material-minimum').value = item.stok_minimum; $('#material-price').value = item.harga_satuan; $('#material-modal-title').textContent = 'Edit bahan baku'; openModal('#material-modal'); } } });
 document.addEventListener('click', (event) => { const id = event.target.dataset.editProduct; if (!id) return; const item = state.products.find((product) => product.id === id); if (!item) return; $('#product-id').value = item.id; $('#product-code').value = item.kode_produk || ''; $('#product-name').value = item.nama; $('#product-price').value = item.harga_jual; $('#product-stock').value = item.stok; $('#product-unit').value = item.satuan; $('#product-modal-title').textContent = 'Edit barang jadi'; openModal('#product-modal'); });
@@ -161,18 +208,33 @@ $('#sale-modal form').addEventListener('submit', async (event) => { event.preven
 $('#settings-button').addEventListener('click', showSettings);
 $('#settings-form').addEventListener('submit', async (event) => {
   event.preventDefault();
+  const form = event.currentTarget;
   const url = $('#supabase-url').value.trim().replace(/\/+$/, '');
   const key = $('#supabase-key').value.trim();
+  const submitButton = form.querySelector('[type="submit"]');
+  const previousConnectionLabel = $('#connection-label').textContent;
+  const previousStatusColor = $('.status-dot').style.background;
+  submitButton.disabled = true;
   try {
     const parsedUrl = new URL(url);
     if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error('URL Supabase harus menggunakan HTTP atau HTTPS.');
-    state.config = { url, key };
-    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(state.config));
+    if (parsedUrl.pathname !== '/' || parsedUrl.search || parsedUrl.hash) throw new Error('Masukkan Project URL saja, tanpa /rest/v1, path, atau query.');
+    if (!key) throw new Error('Masukkan publishable key atau anon key Supabase.');
+    const config = { url, key };
+    $('#connection-label').textContent = 'Menguji koneksi...';
+    await testConnection(config);
+    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
+    state.config = config;
     closeModal($('#settings-modal'));
     $('#connection-label').textContent = 'Menghubungkan...';
     await loadData();
+    if ($('#connection-label').textContent === 'Supabase terhubung') showToast('Supabase berhasil terhubung.');
   } catch (error) {
-    event.currentTarget.querySelector('.form-message').textContent = error.message;
+    $('#connection-label').textContent = state.config.url && state.config.key ? previousConnectionLabel : 'Koneksi gagal';
+    $('.status-dot').style.background = state.config.url && state.config.key ? previousStatusColor : '#c86e7b';
+    form.querySelector('.form-message').textContent = error.message;
+  } finally {
+    submitButton.disabled = false;
   }
 });
 $('#today').textContent = new Intl.DateTimeFormat('id-ID', { dateStyle: 'full' }).format(new Date()); loadData();
