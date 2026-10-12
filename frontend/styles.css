@@ -36,12 +36,29 @@ body{background:#faf7f0}.sidebar{background:var(--brown)}.brand em{color:#e2b878
 .report-card strong{display:block;color:#2f221d;font-size:26px;letter-spacing:-.04em;margin-bottom:5px}
 .report-card small{color:#7a604f}
 .report-panels{display:grid;grid-template-columns:1.2fr 1fr;gap:18px}
+.report-grid{grid-template-columns:repeat(5,minmax(0,1fr))}
+.report-filters{display:grid;grid-template-columns:1fr 1fr 2fr auto auto;align-items:end;gap:12px;margin:18px 0;padding:18px}
+.report-filters label{display:block;font-size:11px;font-weight:600;color:var(--muted)}
+.report-filters input{display:block;width:100%;margin-top:6px;padding:10px;border:1px solid var(--line);border-radius:5px;background:#fff;color:var(--ink)}
+.report-filters .primary-button{white-space:nowrap}
+.button-group{display:flex;flex-wrap:wrap;gap:8px}
+.button-group .text-button{padding:7px 0}
+.report-panels-secondary{margin-top:18px}
+.report-filters+.report-grid .report-card{cursor:default}
+.bar-production{background:linear-gradient(180deg,#93a77d,#718b62)}
+.form-hint{display:block;color:var(--muted);margin-top:10px;line-height:1.5}
+.row-actions [data-cancel-sale]{color:#a03d42}
+.row-actions [data-cancel-sale]:hover{text-decoration:underline}
+button:disabled{opacity:.6;cursor:wait}
 
 @media(max-width:900px){
   .hero-strip{flex-direction:column;align-items:flex-start;gap:20px}
   .hero-visual{width:100%;max-width:240px}
   .feature-strip,.report-grid,.report-panels{grid-template-columns:1fr}
+  .report-filters{grid-template-columns:1fr 1fr}
+  .report-filters .search-label{grid-column:1/-1}
 }
+@media(max-width:560px){.report-filters{grid-template-columns:1fr}.report-filters .search-label{grid-column:auto}.report-filters .primary-button{text-align:center}.panel-heading{gap:10px;flex-wrap:wrap}.button-group{justify-content:flex-start}}
 
 .sidebar{background:linear-gradient(180deg,#422d28 0%,#2d1f1d 100%)}
 .brand-mark{color:#f1c38d}
